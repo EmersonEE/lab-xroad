@@ -1,0 +1,88 @@
+services:
+  # Central Server (CS) + CA de Prueba (en versiones anteriores iban juntos)
+  cs:
+    image: niis/xroad-central-server:noble-7.7.0
+    container_name: central-server
+    ports:
+      - "4000:4000"   # UI del Central Server
+    environment:
+      XROAD_TOKEN_PIN: 123456xrd!
+    volumes:
+      - cs-db-data:/var/lib/postgresql/16/main
+      - cs-conf-data:/etc/xroad
+    networks:
+      xroad-network:
+        ipv4_address: 10.10.0.50
+
+  # Contenedor separado para la CA de Prueba (a partir de versiones recientes)
+  ca:
+    image: ghcr.io/nordic-institute/xrddev-testca:latest
+    container_name: test-ca
+    ports:
+      - "8888:8888"   # OCSP Responder
+    volumes:
+      - ca-data:/home/ca
+    networks:
+      xroad-network:
+        ipv4_address: 10.10.0.53
+
+  # Security Server 1 (SS1) - Servidor de Gestión / Consumidor
+  ss1:
+    image: niis/xroad-security-server-sidecar:7.7.0
+    container_name: security-server-1
+    ports:
+      - "1000:4000"   # UI del SS1
+      - "1080:8080"   # Puerto de servicio (HTTP)
+      - "1443:8443"   # Puerto de servicio (HTTPS)
+    environment:
+      XROAD_TOKEN_PIN: 123456xrd!
+      XROAD_ADMIN_USER: xrd
+      XROAD_ADMIN_PASSWORD: secret
+    volumes:
+      - ss1-db-data:/var/lib/postgresql/16/main
+      - ss1-conf-data:/etc/xroad
+    networks:
+      xroad-network:
+        ipv4_address: 10.10.0.51
+    depends_on:
+      - cs
+      - ca
+
+  # Security Server 2 (SS2) - Servidor Proveedor
+  ss2:
+    image: niis/xroad-security-server-sidecar:7.7.0
+    container_name: security-server-2
+    ports:
+      - "2000:4000"   # UI del SS2
+      - "2080:8080"
+      - "2443:8443"
+    environment:
+      XROAD_TOKEN_PIN: 123456xrd!
+      XROAD_ADMIN_USER: xrd
+      XROAD_ADMIN_PASSWORD: secret
+    volumes:
+      - ss2-db-data:/var/lib/postgresql/16/main
+      - ss2-conf-data:/etc/xroad
+    networks:
+      xroad-network:
+        ipv4_address: 10.10.0.52
+    depends_on:
+      - cs
+      - ca
+
+volumes:
+  cs-db-data:
+  cs-conf-data:
+  ca-data:
+  ss1-db-data:
+  ss1-conf-data:
+  ss2-db-data:
+  ss2-conf-data:
+
+networks:
+  xroad-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 10.10.0.0/24
